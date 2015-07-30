@@ -1,5 +1,6 @@
 package com.wandou.voicetoword;
 
+
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 
@@ -8,6 +9,7 @@ import org.json.JSONObject;
 
 import android.app.Activity;
 import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
@@ -60,6 +62,8 @@ public class MainActivity extends Activity implements OnClickListener,
     // 引擎类型
     private final String mEngineType = SpeechConstant.TYPE_CLOUD;
     private SharedPreferences mSharedPreferences;
+    private SharedPreferences valueSharedPreferences;
+    private Editor valueEditor ;
 
     int ret = 0; // 函数调用返回值
 
@@ -160,24 +164,39 @@ public class MainActivity extends Activity implements OnClickListener,
         // 语义结果回调
         @Override
         public void onResult(UnderstanderResult result) {
-            String text = result.getResultString();
-            mResultText.setText(text);
-            mResultText.setSelection(mResultText.length());
+            
+            String resulttext = JsonParser.parseIatResult(result.getResultString());
+
+            String text = null;
+            // 读取json结果中的text字段
+            try {
+                JSONObject resultJson = new JSONObject(result.getResultString());
+                text = resultJson.optString("answer");
+                JSONObject resultJson2 = new JSONObject(text);
+                text = resultJson2.optString("text");
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+            if (text=="")
+                {
+                text="抱歉哦，我不懂或者没听清楚呢";
+                }
+            setEditText(text);
         }
     };
-
-    private void changeSeekBarLevel() {
-        // TODO Auto-generated method stub
-        if (seekBarProgress >= 7) {
-            seekBarProgress = 0;
-        }
-        mSeekBar.setProgress(seekBarProgress + 1);
-    }
-
-    private void closeLight() {
-        // TODO Auto-generated method stub
-
-    }
+//
+//    private void changeSeekBarLevel() {
+//        // TODO Auto-generated method stub
+//        if (seekBarProgress >= 7) {
+//            seekBarProgress = 0;
+//        }
+//        mSeekBar.setProgress(seekBarProgress + 1);
+//    }
+//
+//    private void closeLight() {
+//        // TODO Auto-generated method stub
+//
+//    }
 
     private void initLayout() {
         // TODO Auto-generated method stub
@@ -219,12 +238,13 @@ public class MainActivity extends Activity implements OnClickListener,
 
     }
 
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         initLayout();
-        SpeechUtility.createUtility(this, SpeechConstant.APPID + "=55b71019");
+        SpeechUtility.createUtility(this, SpeechConstant.APPID + "=55aef8db");
 
         mLight = new LightCtrl();
         // 初始化识别无UI识别对象
@@ -237,6 +257,10 @@ public class MainActivity extends Activity implements OnClickListener,
         // 使用UI听写功能，请根据sdk文件目录下的notice.txt,放置布局文件和图片资源
         mIatDialog = new RecognizerDialog(MainActivity.this, mInitListener);
 
+        valueSharedPreferences = this.getSharedPreferences("valueSaveXML", MODE_PRIVATE);
+        valueEditor = valueSharedPreferences.edit();
+        mLight.SetLight(valueSharedPreferences.getInt("lightValue",0));
+        mSeekBar.setProgress(mLight.GetLight());
         mSharedPreferences = getSharedPreferences(this.getPackageName(),
                 MODE_PRIVATE);
         mToast = Toast.makeText(this, "", Toast.LENGTH_SHORT);
@@ -259,6 +283,8 @@ public class MainActivity extends Activity implements OnClickListener,
         // TODO Auto-generated method stub
         mLight.SetLight(progress);
         seekBarProgress = progress;
+        valueEditor.putInt("lightValue", seekBarProgress);
+        valueEditor.commit();//提交修改
         new senddata().sent(mLight.GetLight());
     }
 
@@ -313,24 +339,35 @@ public class MainActivity extends Activity implements OnClickListener,
                     if (mLight.GetLight() == 0) {
                         mLight.SetLight(4);
                         mSeekBar.setProgress(4);
+                        text="开灯到中等亮度";
                     } else {
                         mSeekBar.setProgress(mLight.GetLight());
+                        text="灯已经打开";
                     }
+                    setEditText(text);
                     break;
                 case 2:// turn off
                     mLight.SetLight(0);
                     mSeekBar.setProgress(0);
+                    text="关灯";
+                    setEditText(text);
                     break;
                 case 3:// increase
                     mLight.Up(1);
                     mSeekBar.setProgress(mLight.GetLight());
+                    text="增加亮度";
+                    setEditText(text);
                     break;
                 case 4:// decrease
                     mLight.Down(1);
                     mSeekBar.setProgress(mLight.GetLight());
+                    text="减少亮度";
+                    setEditText(text);
                     break;
                 case 5:
                     new senddata().sent(9);
+                    text="切换到自动亮度模式";
+                    setEditText(text);
                 default:
                 }
             } else {
@@ -338,8 +375,8 @@ public class MainActivity extends Activity implements OnClickListener,
                 // flytek AI resoponse here
                 // Toast.makeText(MainActivity.this, text, Toast.LENGTH_SHORT)
                 // .show();
-                String testtext = "牛顿第一定律";
-                resultText = testtext;
+//                String testtext = "牛顿第一定律";
+//                resultText = testtext;
                 // 初始化监听器
                 mTextUnderstander.understandText(resultText, searchListener);
             }
@@ -353,6 +390,11 @@ public class MainActivity extends Activity implements OnClickListener,
      * @param param
      * @return
      */
+    public void setEditText (String text)
+    {
+        mResultText.setText(text);
+        mResultText.setSelection(mResultText.length());
+    }
     public void setParam() {
         // 清空参数
         mIat.setParameter(SpeechConstant.PARAMS, null);
